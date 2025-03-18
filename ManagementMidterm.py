@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+import random
 
 # Data Structures
 class GameMachine:
@@ -93,6 +94,7 @@ def initialize_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine_id TEXT NOT NULL,
             machine_type TEXT NOT NULL,
+            token_cost REAL NOT NULL,
             arcade_id TEXT NOT NULL,
             FOREIGN KEY (arcade_id) REFERENCES arcades (arcade_id)
         )
@@ -139,7 +141,6 @@ def refresh_arcade_list(event=None):
         arcade_list.delete(item)
     
     selected_region = region_dropdown.get()  # Get the selected region from the dropdown
-    print(f"Selected Region: {selected_region}")  # Debugging
     conn = sqlite3.connect('arcade_management.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -148,9 +149,7 @@ def refresh_arcade_list(event=None):
     ''', (selected_region,))
     
     rows = cursor.fetchall()
-    print(f"Rows fetched: {rows}")  # Debugging
     for row in rows:
-        print(f"Inserting row: {row}")  # Debugging
         arcade_list.insert('', 'end', values=row)
     
     conn.close()
@@ -355,6 +354,54 @@ def delete_machine():
     else:
         messagebox.showwarning("Selection Error", "Please select a machine to delete.")
 
+# Function to populate the arcade selection dropdown
+def populate_arcade_selection():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT arcade_id FROM arcades')
+    arcades = [row[0] for row in cursor.fetchall()]
+    arcade_selection_dropdown['values'] = arcades
+    conn.close()
+
+# Function to display arcade data and revenue in Global Management
+def display_global_management_data(region):
+    for item in global_arcade_list.get_children():
+        global_arcade_list.delete(item)
+
+    arcade_data = fetch_arcade_data(region)
+    revenue_data = calculate_revenue(arcade_data)
+
+    for arcade in revenue_data:
+        arcade_name, num_machines, avg_token_cost, total_revenue = arcade
+        
+        # Handle None values for avg_token_cost
+        if avg_token_cost is None:
+            avg_token_cost = 0.00  # Set to 0.00 if no machines are found
+
+        global_arcade_list.insert('', 'end', values=(arcade_name, num_machines, f"{avg_token_cost:.2f}", f"${total_revenue:.2f}"))
+
+def fetch_arcade_data(region):
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT arcades.arcade_id, COUNT(machines.machine_id), AVG(machines.token_cost) 
+        FROM arcades 
+        LEFT JOIN machines ON arcades.arcade_id = machines.arcade_id 
+        WHERE arcades.region_id = (SELECT id FROM regions WHERE name = ?) 
+        GROUP BY arcades.arcade_id
+    ''', (region,))
+    arcade_data = cursor.fetchall()
+    conn.close()
+    return arcade_data
+
+def calculate_revenue(arcade_data):
+    revenue_data = []
+    for arcade in arcade_data:
+        arcade_name, num_machines, avg_token_cost = arcade
+        total_revenue = sum(random.uniform(50.00, 1200.00) for _ in range(num_machines))
+        revenue_data.append((arcade_name, num_machines, avg_token_cost, total_revenue))
+    return revenue_data
+
 # Create the main window
 root = tk.Tk()
 root.title("International Gaming Arcade Management System")
@@ -403,13 +450,22 @@ operations_notebook.add(local_frame, text="Local Management")
 # Global Management
 ttk.Label(global_frame, text="Global Management").pack(pady=10)
 ttk.Label(global_frame, text="Select Region:").pack(pady=5)
-region_dropdown_global = ttk.Combobox(global_frame, values=["North America", "Europe East", "Europe West", "Asia", "Other"], state='readonly')
+region_dropdown_global = ttk.Combobox(global_frame, values=regions, state='readonly')
 region_dropdown_global.pack(pady=5)
+region_dropdown_global.bind("<<ComboboxSelected>>", lambda event: display_global_management_data(region_dropdown_global.get()))
+
+# Global Arcade List
+global_arcade_list = ttk.Treeview(global_frame, columns=('Arcade Name', 'Number of Machines', 'Avg Token Cost', 'Total Revenue'), show='headings')
+global_arcade_list.heading('Arcade Name', text='Arcade Name')
+global_arcade_list.heading('Number of Machines', text='Number of Machines')
+global_arcade_list.heading('Avg Token Cost', text='Avg Token Cost')
+global_arcade_list.heading('Total Revenue', text='Total Revenue')
+global_arcade_list.pack(expand=True, fill='both')
 
 # Regional Management
 ttk.Label(regional_frame, text="Regional Management").pack(pady=10)
-ttk.Label(regional_frame, text="Select Region:").pack(pady=5)
-region_dropdown = ttk.Combobox(regional_frame, values=["North America", "Europe East", "Europe West", "Asia", "Other"], state='readonly')
+ttk.Label(regional_frame, text ="Select Region:").pack(pady=5)
+region_dropdown = ttk.Combobox(regional_frame, values=regions, state='readonly')
 region_dropdown.pack(pady=5)
 
 ttk.Label(regional_frame, text="Arcade ID:").pack(pady=5)
