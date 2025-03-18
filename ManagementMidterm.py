@@ -402,6 +402,67 @@ def calculate_revenue(arcade_data):
         revenue_data.append((arcade_name, num_machines, avg_token_cost, total_revenue))
     return revenue_data
 
+# Leaderboard Setup
+usernames = [
+    "ByteMe", "CodeCracker", "DebugDiva", "PixelPioneer", "ScriptSage",
+    "BitBard", "DataDancer", "LoopGuru", "StackSamurai", "CacheCow",
+    "NullPointer", "SyntaxSleuth", "VariableVixen", "QuantumQuokka", "BinaryBard",
+    "FunctionFreak", "ArrayAce", "CompileCaptain", "LogicLynx", "ByteBandit",
+    "CodeCoyote", "DebugDynamo", "PixelPirate", "ScriptSorcerer", "BitBuster",
+    "DataDruid", "LoopLegend", "StackSultan", "CacheChameleon", "NullNinja",
+    "SyntaxSphinx", "VariableVortex", "QuantumQuokka", "BinaryBison", "FunctionFox",
+    "ArrayArcher", "CompileCrusader", "LogicLlama", "ByteBison", "CodeCobra",
+    "DebugDolphin", "PixelPuma", "ScriptShark", "BitBuffalo", "DataDragon",
+    "LoopLynx", "StackStallion", "CacheCheetah", "NullNarwhal", "SyntaxSwan",
+    "VariableViper", "QuantumQuail", "BinaryBeetle", "FunctionFalcon", "ArrayAntelope",
+    "CompileCoyote", "LogicLobster", "ByteBadger", "CodeCaterpillar", "DebugDuck",
+    "PixelPenguin", "ScriptSquirrel", "BitBear", "DataDolphin", "LoopLemur",
+    "StackSparrow", "CacheCrane", "NullNewt", "SyntaxSeal", "VariableVulture",
+    "QuantumQuokka", "BinaryBumblebee", "FunctionFerret", "ArrayAardvark", "CompileCrocodile",
+    "LogicLion", "ByteBumblebee", "CodeChameleon", "DebugDingo", "PixelParrot",
+    "ScriptSeahorse", "BitBison", "DataDingo", "LoopLynx", "StackStarling",
+    "CacheCobra", "NullNighthawk", "SyntaxSparrow", "VariableViper", "QuantumQuokka",
+    "BinaryBison", "FunctionFrog", "ArrayArmadillo", "CompileCheetah", "LogicLynx"
+]
+
+# Initialize scores for the top 50 usernames
+leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
+
+# Function to update scores randomly
+def update_scores():
+    username = random.choice(list(leaderboard.keys()))
+    change = random.randint(-1000, 1000)  # Randomly add or remove points
+    leaderboard[username] = max(0, leaderboard[username] + change)  # Ensure score doesn't go below 0
+    display_leaderboard()
+    root.after(30000, update_scores)  # Schedule next update in 30 seconds
+
+# Function to display the leaderboard
+def display_leaderboard():
+    for item in leaderboard_list.get_children():
+        leaderboard_list.delete(item)
+    
+    sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+    for username, score in sorted_leaderboard:
+        leaderboard_list.insert('', 'end', values=(username, score))
+
+# Function to refresh scores for a random number of users
+def refresh_scores():
+    num_updates = random.randint(3, 8)  # Choose a random number of scores to update
+    for _ in range(num_updates):
+        username = random.choice(list(leaderboard.keys()))
+        change = random.randint(-5000, 5000)  # Randomly add or subtract points
+        leaderboard[username] = max(0, leaderboard[username] + change)  # Ensure score doesn't go below 0
+    display_leaderboard()
+
+# Function to display the leaderboard
+def display_leaderboard():
+    for item in leaderboard_list.get_children():
+        leaderboard_list.delete(item)
+    
+    sorted_leaderboard = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+    for username, score in sorted_leaderboard:
+        leaderboard_list.insert('', 'end', values=(username, score))
+
 # Create the main window
 root = tk.Tk()
 root.title("International Gaming Arcade Management System")
@@ -421,14 +482,14 @@ notebook.pack(expand=True, fill='both')
 
 # Create frames for each tab
 operations_frame = ttk.Frame(notebook)
-machines_frame = ttk.Frame(notebook)
+leaderboard_frame = ttk.Frame(notebook)
 players_frame = ttk.Frame(notebook)
 events_frame = ttk.Frame(notebook)
 revenue_frame = ttk.Frame(notebook)
 
 # Add tabs to the notebook
 notebook.add(operations_frame, text="Managing Operations")
-notebook.add(machines_frame, text="Managing Machines")
+notebook.add(leaderboard_frame, text="Global Leaderboard")
 notebook.add(players_frame, text="Player Tracking")
 notebook.add(events_frame, text="Event Scheduling")
 notebook.add(revenue_frame, text="Revenue Tracking")
@@ -464,7 +525,7 @@ global_arcade_list.pack(expand=True, fill='both')
 
 # Regional Management
 ttk.Label(regional_frame, text="Regional Management").pack(pady=10)
-ttk.Label(regional_frame, text ="Select Region:").pack(pady=5)
+ttk.Label(regional_frame, text="Select Region:").pack(pady=5)
 region_dropdown = ttk.Combobox(regional_frame, values=regions, state='readonly')
 region_dropdown.pack(pady=5)
 
@@ -527,7 +588,7 @@ edit_machine_button = ttk.Button(button_frame, text="Edit Machine", command=edit
 edit_machine_button.grid(row=0, column=1, padx=5)
 
 # Button to delete machine
-delete_machine_button = ttk.Button(button_frame, text="Delete Machine", command=delete_machine)
+delete_machine_button = ttk.Button(button_frame, text="Delete Machine ", command=delete_machine)
 delete_machine_button.grid(row=0, column=2, padx=5)
 
 # Machine List for Local Management
@@ -557,6 +618,19 @@ region_dropdown.bind("<<ComboboxSelected>>", refresh_arcade_list)
 
 # Bind the arcade selection dropdown to refresh the machine list
 arcade_selection_dropdown.bind("<<ComboboxSelected>>", refresh_machine_list)
+
+# Leaderboard List
+leaderboard_list = ttk.Treeview(leaderboard_frame, columns=('Username', 'Score'), show='headings')
+leaderboard_list.heading('Username', text='Username')
+leaderboard_list.heading('Score', text='Score')
+leaderboard_list.pack(expand=True, fill='both')
+
+# Refresh Button for Leaderboard
+refresh_button = ttk.Button(leaderboard_frame, text="Refresh Scores", command=refresh_scores)
+refresh_button.pack(pady=10)
+
+# Start the score updates
+update_scores()
 
 # Start the application
 root.mainloop()
