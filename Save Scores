@@ -391,7 +391,7 @@ def fetch_arcade_data(region):
     conn = sqlite3.connect('arcade_management.db')
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT arcades.arc ade_id, COUNT(machines.machine_id), AVG(machines.token_cost) 
+        SELECT arcades.arcade_id, COUNT(machines.machine_id), AVG(machines.token_cost) 
         FROM arcades 
         LEFT JOIN machines ON arcades.arcade_id = machines.arcade_id 
         WHERE arcades.region_id = (SELECT id FROM regions WHERE name = ?) 
