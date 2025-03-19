@@ -13,11 +13,15 @@ class GameMachine:
     def update_revenue(self, amount):
         self.revenue += amount
 
+# Player class to hold player data
 class Player:
-    def __init__(self, player_id, name):
-        self.player_id = player_id
-        self.name = name
-        self.membership_status = False  # True if the player is a member
+    def __init__(self, username, score, arcade, revenue, most_played_game, event_placement):
+        self.username = username
+        self.score = score
+        self.arcade = arcade
+        self.revenue = revenue
+        self.most_played_game = most_played_game
+        self.event_placement = event_placement
 
 class Event:
     def __init__(self, event_id, name, date):
@@ -105,6 +109,17 @@ def initialize_db():
             username TEXT PRIMARY KEY,
             score INTEGER NOT NULL
         )
+    ''')  
+
+    # Create players table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS players (
+            username TEXT PRIMARY KEY,
+            arcade TEXT,
+            revenue REAL,
+            most_played_game TEXT,
+            event_placement INTEGER
+        )
     ''')
     
     # Check if the token_cost column exists, and if not, add it
@@ -117,7 +132,7 @@ def initialize_db():
     conn.close()
 
 # Leaderboard setup and definition
-leaderboard = {} # Making this empty so the variable has definitiion
+leaderboard = {}  # Making this empty so the variable has definition
 
 # Function to add a region to the database
 def add_region_to_db(region_name):
@@ -164,6 +179,17 @@ def refresh_arcade_list(event=None):
     
     conn.close()
 
+#Function to add player info to database
+def add_player_to_db(username, arcade, revenue, most_played_game, event_placement):
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO players (username, arcade, revenue, most_played_game, event_placement) 
+        VALUES (?, ?, ?, ?, ?)
+    ''', (username, arcade, revenue, most_played_game, event_placement))
+    conn.commit()
+    conn.close()
+
 # Function to open the edit arcade dialog
 def open_edit_arcade_dialog(arcade_id, current_location):
     edit_window = tk.Toplevel(root)
@@ -181,7 +207,7 @@ def open_edit_arcade_dialog(arcade_id, current_location):
     def save_changes():
         new_location = new_location_entry.get()
         if new_location:
-            conn = sqlite3.connect('arcade_management .db')
+            conn = sqlite3.connect('arcade_management.db')
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE arcades 
@@ -435,6 +461,49 @@ usernames = [
     "BinaryBison", "FunctionFrog", "ArrayArmadillo", "CompileCheetah", "LogicLynx"
 ]
 
+# Function to pull player data from the database
+def fetch_player_data_from_db():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT l.username, l.score, 
+               COALESCE(a.arcade_id, 'N/A') AS arcade, 
+               COALESCE(p.revenue, 'N/A') AS revenue 
+        FROM leaderboard l
+        LEFT JOIN players p ON l.username = p.username
+        LEFT JOIN arcades a ON p.arcade = a.arcade_id
+    ''')
+    player_data = cursor.fetchall()  # Fetch all player data
+    print(player_data)  # Debugging output
+    conn.close()
+    return player_data
+
+# Function to refresh player tracking data
+def refresh_player_tracking():
+    # Fetch player data from the database
+    player_data = fetch_player_data_from_db()  # Get player data from the database
+    
+    # Clear the Treeview
+    for item in player_tracking_list.get_children():
+        player_tracking_list.delete(item)
+
+    # Populate the Treeview with the fetched data
+    for username, score, arcade, revenue in player_data:
+        # Check if revenue is a number or 'N/A'
+        if isinstance(revenue, (int, float)):
+            revenue_display = f"${revenue:.2f}"
+        else:
+            revenue_display = "N/A"  # Handle the case where revenue is 'N/A'
+
+        player_tracking_list.insert('', 'end', values=(
+            username, 
+            score, 
+            revenue_display,  # Use the formatted revenue
+            arcade, 
+            "N/A",  # Assuming you want to keep these as "N/A" for now
+            "N/A", 
+            "N/A"
+        ))
 # Load scores from the database
 def load_scores():
     conn = sqlite3.connect('arcade_management.db')
@@ -480,7 +549,7 @@ initialize_leaderboard()
 # Function to update scores randomly
 def update_scores():
     username = random.choice(list(leaderboard.keys()))
-    change = random.randint(-1000, 1000)  # Randomly add or remove points
+    change = random.randint(-500, 1250)  # Randomly add or remove points
     leaderboard[username] = max(0, leaderboard[username] + change)  # Ensure score doesn't go below 0
     display_leaderboard()
     root.after(30000, update_scores)  # Schedule next update in 30 seconds
@@ -496,7 +565,7 @@ def display_leaderboard():
 
 # Function to refresh scores for a random number of users
 def refresh_scores():
-    save_scores() # Should save scores to the database
+    save_scores()  # Save current scores to the database
     
     num_updates = random.randint(3, 8)  # Choose a random number of scores to update
     for _ in range(num_updates):
@@ -505,9 +574,8 @@ def refresh_scores():
         leaderboard[username] = max(0, leaderboard[username] + change)  # Ensure score doesn't go below 0
     display_leaderboard()
 
-
 # Create the main window
-root = tk .Tk()
+root = tk.Tk()
 root.title("International Gaming Arcade Management System")
 root.geometry("800x600")
 
@@ -518,20 +586,6 @@ initialize_db()
 regions = ["North America", "Europe East", "Europe West", "Asia", "Other"]
 for region in regions:
     add_region_to_db(region)
-
-def reset_leaderboard():
-    # Clear existing scores from the database
-    conn = sqlite3.connect('arcade_management.db')
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM leaderboard')  # Delete all entries in the leaderboard
-    conn.commit()
-    conn.close()
-
-    # Reinitialize the leaderboard with random scores
-    global leaderboard
-    leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
-    save_scores()  # Save the new randomized scores to the database
-    display_leaderboard()  # Update the display to show the new scores    
 
 # Create a Notebook widget
 notebook = ttk.Notebook(root)
@@ -648,6 +702,10 @@ edit_machine_button.grid(row=0, column=1, padx=5)
 delete_machine_button = ttk.Button(button_frame, text="Delete Machine", command=delete_machine)
 delete_machine_button.grid(row=0, column=2, padx=5)
 
+# Refresh Button for Player Tracking
+refresh_player_tracking_button = ttk.Button(players_frame, text="Refresh Player Data", command=refresh_player_tracking)
+refresh_player_tracking_button.pack(pady=10)
+
 # Machine List for Local Management
 machine_list = ttk.Treeview(local_frame, columns=('Machine Name', 'Game Title', 'Token Cost'), show='headings')
 machine_list.heading('Machine Name', text='Machine Name')
@@ -686,9 +744,119 @@ leaderboard_list.pack(expand=True, fill='both')
 refresh_button = ttk.Button(leaderboard_frame, text="Refresh Scores", command=refresh_scores)
 refresh_button.pack(pady=10)
 
+# Function to reset the leaderboard
+def reset_leaderboard():
+    # Clear existing scores from the database
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM leaderboard')  # Delete all entries in the leaderboard
+    conn.commit()
+    conn.close()
+
+    # Reinitialize the leaderboard with random scores
+    global leaderboard
+    leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
+    save_scores()  # Save the new randomized scores to the database
+    display_leaderboard()  # Update the display to show the new scores    
+
 # Reset Button for Leaderboard
 reset_button = ttk.Button(leaderboard_frame, text="Reset Leaderboard", command=reset_leaderboard)
 reset_button.pack(pady=10)
+
+# Function to get arcade machines from the database
+def get_arcade_machines():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT machine_id FROM machines')  # Adjust the query as needed
+    arcade_machines = [row[0] for row in cursor.fetchall()]  # Fetch all machine IDs
+    conn.close()
+    return arcade_machines
+
+#Function to gather arcade names
+def get_arcade_names():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT arcade_id FROM arcades')  # Adjust the query as needed
+    arcade_names = [row[0] for row in cursor.fetchall()]  # Fetch all arcade IDs
+    conn.close()
+    return arcade_names
+
+#Function to gather player scores
+def get_player_data():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT username, score FROM leaderboard')  # Adjust the query as needed
+    player_data = cursor.fetchall()  # Fetch all player data
+    conn.close()
+    return player_data
+
+# Function to generate player data
+def generate_player_data():
+    players = []
+    arcade_machines = get_arcade_machines()  # Get the list of machine IDs
+    arcade_names = get_arcade_names()  # Get the list of arcade names
+    
+    # Fetch player data from the database
+    player_scores = get_player_data()  # Get player data from the database
+    
+    for username, score in player_scores:
+        arcade = random.choice(arcade_names)  # Use dynamic arcade names
+        revenue = round(score / random.uniform(1.0, 2.0) * .25, 2)  # Calculate revenue
+        most_played_game = random.choice(arcade_machines)  # Randomly select a game
+        event_placement = min(max(1, 64 - (score // 781.25)), 64)  # Calculate event placement based on score
+        players.append(Player(username, score, arcade, revenue, most_played_game, event_placement))
+    return players
+
+# Generate player data
+player_data = generate_player_data()
+
+
+# Player Tracking List
+player_tracking_list = ttk.Treeview(players_frame, columns=('Player', 'Score', 'Revenue', 'Arcade', 'Most Played Game', 'Event Placement', 'Tournament Winner'), show='headings')
+player_tracking_list.heading('Player', text='Player')
+player_tracking_list.heading('Score', text='Score')
+player_tracking_list.heading('Revenue', text='Revenue')
+player_tracking_list.heading('Arcade', text='Arcade')
+player_tracking_list.heading('Most Played Game', text='Most Played Game')
+player_tracking_list.heading('Event Placement', text='Event Placement')
+player_tracking_list.heading('Tournament Winner', text='Tournament Winner')
+player_tracking_list.pack(expand=True, fill='both')
+
+# Refresh Button for Player Tracking
+refresh_player_tracking_button = ttk.Button(players_frame, text="Refresh Player Data", command=refresh_player_tracking)
+refresh_player_tracking_button.pack(pady=10)
+
+# Function to sort the Treeview
+def sort_treeview(treeview, col, reverse):
+    # Get the data from the Treeview
+    data = [(treeview.item(item)['values'], item) for item in treeview.get_children()]
+    # Sort the data
+    data.sort(reverse=reverse, key=lambda x: x[0][col])  # Sort by the specified column
+    
+    # Reinsert the sorted data into the Treeview
+    for index, (values, item) in enumerate(data):
+        treeview.move(item, '', index)  # Move the item to the new position
+    # Reverse the sort order for the next click
+    treeview.heading(col, command=lambda: sort_treeview(treeview, col, not reverse))
+
+# Bind sorting to the Player Tracking Treeview headers
+for col in range(len(player_tracking_list['columns'])):
+    player_tracking_list.heading(col, command=lambda c=col: sort_treeview(player_tracking_list, c, False))
+
+# Function to display player data in the Player Tracking tab
+def display_player_tracking():
+    for item in player_tracking_list.get_children():
+        player_tracking_list.delete(item)
+
+    # Sort players by revenue
+    sorted_players = sorted(player_data, key=lambda p: p.revenue, reverse=True)
+
+    for player in sorted_players:
+        crown_symbol = "👑" if player.event_placement == 1 else ""
+        player_tracking_list.insert('', 'end', values=(player.username, player.score, f"${player.revenue:.2f}", player.arcade, player.most_played_game, player.event_placement, crown_symbol))
+
+# Function to display player tracking
+display_player_tracking()
 
 # Start the score updates
 update_scores()
