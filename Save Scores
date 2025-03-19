@@ -116,6 +116,9 @@ def initialize_db():
     conn.commit()
     conn.close()
 
+# Leaderboard setup and definition
+leaderboard = {} # Making this empty so the variable has definitiion
+
 # Function to add a region to the database
 def add_region_to_db(region_name):
     conn = sqlite3.connect('arcade_management.db')
@@ -432,8 +435,47 @@ usernames = [
     "BinaryBison", "FunctionFrog", "ArrayArmadillo", "CompileCheetah", "LogicLynx"
 ]
 
-# Initialize scores for the top 50 usernames
-leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
+# Load scores from the database
+def load_scores():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT username, score FROM leaderboard')
+    scores = cursor.fetchall()
+    conn.close()
+    
+    # Initialize the leaderboard with scores from the database
+    global leaderboard  # Ensure you are modifying the global leaderboard variable
+    leaderboard = {username: score for username, score in scores}
+
+# Initialize scores for the top 50 usernames if the leaderboard is empty
+def initialize_leaderboard():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM leaderboard')
+    count = cursor.fetchone()[0]
+    
+    global leaderboard  # Ensure you are modifying the global leaderboard variable
+    if count == 0:  # If the leaderboard is empty, randomize scores
+        leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
+        save_scores()  # Save the randomized scores to the database
+    else:
+        load_scores()  # Load existing scores from the database
+
+    conn.close()  # Ensure the connection is closed
+
+# Save scores for the leaderboard
+def save_scores():
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()    
+
+    for username, score in leaderboard.items():
+        cursor.execute('INSERT OR REPLACE INTO leaderboard (username, score) VALUES (?, ?)', (username, score))    
+
+    conn.commit()
+    conn.close()
+
+# Initialize the leaderboard
+initialize_leaderboard()
 
 # Function to update scores randomly
 def update_scores():
@@ -463,44 +505,6 @@ def refresh_scores():
         leaderboard[username] = max(0, leaderboard[username] + change)  # Ensure score doesn't go below 0
     display_leaderboard()
 
-# Save scores for the leaderboard
-def save_scores():
-    conn = sqlite3.connect('arcade_management.db')
-    cursor = conn.cursor()    
-
-    for username, score in leaderboard.items():
-        cursor.execute('INSERT OR REPLACE INTO leaderboard (username, score) VALUES (?, ?)', (username, score))    
-
-    conn.commit()
-    conn.close()
-
-# Load scores from the database
-def load_scores():
-    conn = sqlite3.connect('arcade_management.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT username, score FROM leaderboard')
-    scores = cursor.fetchall()
-    conn.close()
-    
-    # Initialize the leaderboard with scores from the database
-    global leaderboard  # Ensure you are modifying the global leaderboard variable
-    leaderboard = {username: score for username, score in scores}
-
-# Initialize scores for the top 50 usernames if the leaderboard is empty
-def initialize_leaderboard():
-    conn = sqlite3.connect('arcade_management.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM leaderboard')
-    count = cursor.fetchone()[0]
-    
-    if count == 0:  # If the leaderboard is empty, randomize scores
-        global leaderboard
-        leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
-        save_scores()  # Save the randomized scores to the database
-    else:
-        load_scores()  # Load existing scores from the database
-
-    conn.close()  # Ensure the connection is closed
 
 # Create the main window
 root = tk .Tk()
@@ -514,6 +518,20 @@ initialize_db()
 regions = ["North America", "Europe East", "Europe West", "Asia", "Other"]
 for region in regions:
     add_region_to_db(region)
+
+def reset_leaderboard():
+    # Clear existing scores from the database
+    conn = sqlite3.connect('arcade_management.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM leaderboard')  # Delete all entries in the leaderboard
+    conn.commit()
+    conn.close()
+
+    # Reinitialize the leaderboard with random scores
+    global leaderboard
+    leaderboard = {username: random.randint(1, 50000) for username in random.sample(usernames, 50)}
+    save_scores()  # Save the new randomized scores to the database
+    display_leaderboard()  # Update the display to show the new scores    
 
 # Create a Notebook widget
 notebook = ttk.Notebook(root)
@@ -667,6 +685,10 @@ leaderboard_list.pack(expand=True, fill='both')
 # Refresh Button for Leaderboard
 refresh_button = ttk.Button(leaderboard_frame, text="Refresh Scores", command=refresh_scores)
 refresh_button.pack(pady=10)
+
+# Reset Button for Leaderboard
+reset_button = ttk.Button(leaderboard_frame, text="Reset Leaderboard", command=reset_leaderboard)
+reset_button.pack(pady=10)
 
 # Start the score updates
 update_scores()
